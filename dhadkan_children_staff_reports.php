@@ -48,6 +48,12 @@ try {
         case 'getReportDetails':
             getReportDetails($conn);
             break;
+        case 'getStaffReports':
+            getStaffReports($conn);
+            break;
+        case 'getStaffStats':
+            getStaffStats($conn);
+            break;
         default:
             http_response_code(400);
             echo json_encode([
@@ -428,6 +434,270 @@ function getDoctorsList($conn) {
         echo json_encode([
             'success' => false,
             'message' => 'Error fetching doctors list',
+            'error' => $e->getMessage()
+        ]);
+    }
+}
+
+/**
+ * Get combined staff reports (teachers and employees) with doctor information
+ */
+function getStaffReports($conn) {
+    try {
+        // Get filter parameters
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = ($page - 1) * $limit;
+        
+        $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+        $heartStatus = isset($_GET['heartStatus']) ? trim($_GET['heartStatus']) : '';
+        $doctorId = isset($_GET['doctorId']) ? (int)$_GET['doctorId'] : 0;
+        $staffType = isset($_GET['staffType']) ? trim($_GET['staffType']) : ''; // 'teacher' or 'employee'
+
+        // UNION query to combine teacher and employee data
+        $baseQuery = "
+            (SELECT 
+                t.t_id as id,
+                t.t_dr_id as dr_id,
+                t.t_name as name,
+                t.t_age as age,
+                t.t_gender as gender,
+                t.t_mobileNo as mobileNo,
+                t.t_schoolName as schoolName,
+                t.t_haveAadhar as haveAadhar,
+                t.t_haveShramik as haveShramik,
+                t.t_aadharPhoto as aadharPhoto,
+                t.t_shramikPhoto as shramikPhoto,
+                t.t_heartStatus as heartStatus,
+                t.t_notes as notes,
+                t.t_createdat as createdat,
+                'शिक्षक' as staffType,
+                d.doctorName,
+                d.hospitalname,
+                d.hospitalType
+            FROM teacher t
+            INNER JOIN doctors d ON t.t_dr_id = d.id)
+            UNION ALL
+            (SELECT 
+                e.e_id as id,
+                e.e_dr_id as dr_id,
+                e.e_name as name,
+                e.e_age as age,
+                e.e_gender as gender,
+                e.e_mobileNo as mobileNo,
+                e.e_schoolName as schoolName,
+                e.e_haveAadhar as haveAadhar,
+                e.e_haveShramik as haveShramik,
+                e.e_aadharPhoto as aadharPhoto,
+                e.e_shramikPhoto as shramikPhoto,
+                e.e_heartStatus as heartStatus,
+                e.e_notes as notes,
+                e.e_createdat as createdat,
+                'कर्मचारी' as staffType,
+                d.doctorName,
+                d.hospitalname,
+                d.hospitalType
+            FROM employee e
+            INNER JOIN doctors d ON e.e_dr_id = d.id)
+        ";
+
+        // Build WHERE clause for filtering
+        $whereConditions = [];
+        $havingConditions = [];
+
+        if (!empty($search)) {
+            $havingConditions[] = "(name LIKE '%$search%' OR schoolName LIKE '%$search%')";
+        }
+
+        if (!empty($heartStatus)) {
+            $havingConditions[] = "heartStatus = '$heartStatus'";
+        }
+
+        if ($doctorId > 0) {
+            $havingConditions[] = "dr_id = $doctorId";
+        }
+
+        if (!empty($staffType)) {
+            if ($staffType === 'teacher') {
+                $havingConditions[] = "staffType = 'शिक्षक'";
+            } else if ($staffType === 'employee') {
+                $havingConditions[] = "staffType = 'कर्मचारी'";
+            }
+        }
+
+        // Complete query with filtering and pagination
+        $finalQuery = "SELECT * FROM ($baseQuery) as combined_staff";
+        
+        if (!empty($havingConditions)) {
+            $finalQuery .= " WHERE " . implode(' AND ', $havingConditions);
+        }
+
+        // Get total count first
+        $countQuery = "SELECT COUNT(*) as total FROM ($finalQuery) as count_table";
+        $countResult = $conn->query($countQuery);
+        $totalRecords = $countResult->fetch_assoc()['total'];
+
+        // Add ordering and pagination
+        $finalQuery .= " ORDER BY createdat DESC LIMIT $limit OFFSET $offset";
+
+        $result = $conn->query($finalQuery);
+
+        if (!$result) {
+            throw new Exception("Database query error: " . $conn->error);
+        }
+
+        $staffReports = [];
+        while ($row = $result->fetch_assoc()) {
+            $staffReports[] = [
+                'id' => (int)$row['id'],
+                'dr_id' => (int)$row['dr_id'],
+                'name' => $row['name'],
+                'age' => (int)$row['age'],
+                'gender' => $row['gender'],
+                'mobileNo' => $row['mobileNo'],
+                'schoolName' => $row['schoolName'],
+                'haveAadhar' => $row['haveAadhar'],
+                'haveShramik' => $row['haveShramik'],
+                'aadharPhoto' => $row['aadharPhoto'],
+                'shramikPhoto' => $row['shramikPhoto'],
+                'heartStatus' => $row['heartStatus'],
+                'notes' => $row['notes'],
+                'screeningDate' => date('d/m/Y', strtotime($row['createdat'])),
+                'staffType' => $row['staffType'],
+                'doctorName' => $row['doctorName'],
+                'hospitalName' => $row['hospitalname'],
+                'hospitalType' => $row['hospitalType']
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'data' => $staffReports,
+            'pagination' => [
+                'currentPage' => $page,
+                'totalPages' => ceil($totalRecords / $limit),
+                'totalRecords' => (int)$totalRecords,
+                'recordsPerPage' => $limit
+            ]
+        ]);
+
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error fetching staff reports',
+            'error' => $e->getMessage()
+        ]);
+    }
+}
+
+/**
+ * Get statistics for staff reports (teachers and employees combined)
+ */
+function getStaffStats($conn) {
+    try {
+        // Get teacher statistics
+        $teacherStatsQuery = "
+            SELECT 
+                COUNT(*) as totalTeachers,
+                SUM(CASE WHEN t_heartStatus = 'संदेह नहीं' THEN 1 ELSE 0 END) as normalTeachers,
+                SUM(CASE WHEN t_heartStatus = 'संदिग्ध' THEN 1 ELSE 0 END) as suspiciousTeachers,
+                COUNT(DISTINCT t_dr_id) as doctorsWithTeachers,
+                COUNT(DISTINCT t_schoolName) as schoolsWithTeachers
+            FROM teacher
+        ";
+
+        // Get employee statistics
+        $employeeStatsQuery = "
+            SELECT 
+                COUNT(*) as totalEmployees,
+                SUM(CASE WHEN e_heartStatus = 'संदेह नहीं' THEN 1 ELSE 0 END) as normalEmployees,
+                SUM(CASE WHEN e_heartStatus = 'संदिग्ध' THEN 1 ELSE 0 END) as suspiciousEmployees,
+                COUNT(DISTINCT e_dr_id) as doctorsWithEmployees,
+                COUNT(DISTINCT e_schoolName) as schoolsWithEmployees
+            FROM employee
+        ";
+
+        $teacherResult = $conn->query($teacherStatsQuery);
+        $teacherStats = $teacherResult->fetch_assoc();
+
+        $employeeResult = $conn->query($employeeStatsQuery);
+        $employeeStats = $employeeResult->fetch_assoc();
+
+        // Calculate combined statistics
+        $totalStaff = $teacherStats['totalTeachers'] + $employeeStats['totalEmployees'];
+        $normalStaff = $teacherStats['normalTeachers'] + $employeeStats['normalEmployees'];
+        $suspiciousStaff = $teacherStats['suspiciousTeachers'] + $employeeStats['suspiciousEmployees'];
+
+        // Get doctor-wise staff statistics
+        $doctorStaffQuery = "
+            SELECT 
+                d.id,
+                d.doctorName,
+                d.hospitalname,
+                COALESCE(teacher_count, 0) as teacherCount,
+                COALESCE(employee_count, 0) as employeeCount,
+                COALESCE(teacher_count, 0) + COALESCE(employee_count, 0) as totalStaffCount,
+                COALESCE(teacher_suspicious, 0) + COALESCE(employee_suspicious, 0) as suspiciousStaffCount
+            FROM doctors d
+            LEFT JOIN (
+                SELECT 
+                    t_dr_id,
+                    COUNT(*) as teacher_count,
+                    SUM(CASE WHEN t_heartStatus = 'संदिग्ध' THEN 1 ELSE 0 END) as teacher_suspicious
+                FROM teacher 
+                GROUP BY t_dr_id
+            ) t ON d.id = t.t_dr_id
+            LEFT JOIN (
+                SELECT 
+                    e_dr_id,
+                    COUNT(*) as employee_count,
+                    SUM(CASE WHEN e_heartStatus = 'संदिग्ध' THEN 1 ELSE 0 END) as employee_suspicious
+                FROM employee 
+                GROUP BY e_dr_id
+            ) e ON d.id = e.e_dr_id
+            WHERE (COALESCE(teacher_count, 0) + COALESCE(employee_count, 0)) > 0
+            ORDER BY totalStaffCount DESC
+        ";
+
+        $doctorStaffResult = $conn->query($doctorStaffQuery);
+        $doctorStaffStats = [];
+        while ($row = $doctorStaffResult->fetch_assoc()) {
+            $doctorStaffStats[] = [
+                'doctorId' => (int)$row['id'],
+                'doctorName' => $row['doctorName'],
+                'hospitalName' => $row['hospitalname'],
+                'teacherCount' => (int)$row['teacherCount'],
+                'employeeCount' => (int)$row['employeeCount'],
+                'totalStaffCount' => (int)$row['totalStaffCount'],
+                'suspiciousStaffCount' => (int)$row['suspiciousStaffCount']
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'stats' => [
+                'totalStaff' => (int)$totalStaff,
+                'totalTeachers' => (int)$teacherStats['totalTeachers'],
+                'totalEmployees' => (int)$employeeStats['totalEmployees'],
+                'normalStaff' => (int)$normalStaff,
+                'suspiciousStaff' => (int)$suspiciousStaff,
+                'normalTeachers' => (int)$teacherStats['normalTeachers'],
+                'suspiciousTeachers' => (int)$teacherStats['suspiciousTeachers'],
+                'normalEmployees' => (int)$employeeStats['normalEmployees'],
+                'suspiciousEmployees' => (int)$employeeStats['suspiciousEmployees'],
+                'suspiciousPercentage' => $totalStaff > 0 ? round(($suspiciousStaff / $totalStaff) * 100, 1) : 0,
+                'teacherPercentage' => $totalStaff > 0 ? round(($teacherStats['totalTeachers'] / $totalStaff) * 100, 1) : 0,
+                'employeePercentage' => $totalStaff > 0 ? round(($employeeStats['totalEmployees'] / $totalStaff) * 100, 1) : 0
+            ],
+            'doctorStaffStats' => $doctorStaffStats
+        ]);
+
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error fetching staff statistics',
             'error' => $e->getMessage()
         ]);
     }
