@@ -17,7 +17,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // Include database connection
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Get the request method and action
 $method = $_SERVER['REQUEST_METHOD'];
@@ -66,12 +66,16 @@ try {
         case 'get_doctor_stats':
             validateDoctorId($doctor_id);
             
+            error_log("Getting stats for doctor ID: " . $doctor_id); // Debug log
+            
             // Get total children screened by this doctor
             $stmt = $conn->prepare("SELECT COUNT(*) as totalChildrenScreened FROM children WHERE dr_id = ?");
             $stmt->bind_param("i", $doctor_id);
             $stmt->execute();
             $total_result = $stmt->get_result();
             $total_count = $total_result->fetch_assoc()['totalChildrenScreened'];
+            
+            error_log("Total children: " . $total_count); // Debug log
             
             // Get positive cases (संदिग्ध)
             $stmt = $conn->prepare("SELECT COUNT(*) as positiveCases FROM children WHERE dr_id = ? AND heartStatus = 'संदिग्ध'");
@@ -94,13 +98,44 @@ try {
             $week_result = $stmt->get_result();
             $week_count = $week_result->fetch_assoc()['reportsThisWeek'];
             
+            // Get teacher stats
+            $stmt = $conn->prepare("SELECT COUNT(*) as totalTeachers FROM teacher WHERE t_dr_id = ?");
+            $stmt->bind_param("i", $doctor_id);
+            $stmt->execute();
+            $teacher_result = $stmt->get_result();
+            $teacher_count = $teacher_result->fetch_assoc()['totalTeachers'];
+            
+            // Get employee stats
+            $stmt = $conn->prepare("SELECT COUNT(*) as totalEmployees FROM employee WHERE e_dr_id = ?");
+            $stmt->bind_param("i", $doctor_id);
+            $stmt->execute();
+            $employee_result = $stmt->get_result();
+            $employee_count = $employee_result->fetch_assoc()['totalEmployees'];
+            
+            // Get teacher/employee positive cases
+            $stmt = $conn->prepare("
+                SELECT 
+                    (SELECT COUNT(*) FROM teacher WHERE t_dr_id = ? AND t_heartStatus = 'संदिग्ध') +
+                    (SELECT COUNT(*) FROM employee WHERE e_dr_id = ? AND e_heartStatus = 'संदिग्ध') as staffPositiveCases
+            ");
+            $stmt->bind_param("ii", $doctor_id, $doctor_id);
+            $stmt->execute();
+            $staff_positive_result = $stmt->get_result();
+            $staff_positive_count = $staff_positive_result->fetch_assoc()['staffPositiveCases'];
+            
             $stats = [
                 'totalChildrenScreened' => intval($total_count),
                 'positiveCases' => intval($positive_count),
                 'todayScreenings' => intval($today_count),
                 'reportsThisWeek' => intval($week_count),
-                'pendingReports' => 0 // You can add logic for pending reports if needed
+                'pendingReports' => 0, // You can add logic for pending reports if needed
+                'totalTeachers' => intval($teacher_count),
+                'totalEmployees' => intval($employee_count),
+                'totalStaff' => intval($teacher_count) + intval($employee_count),
+                'staffPositiveCases' => intval($staff_positive_count)
             ];
+            
+            error_log("Stats calculated: " . json_encode($stats)); // Debug log
             
             sendResponse(true, $stats, 'Statistics fetched successfully');
             break;
@@ -108,6 +143,8 @@ try {
         // Get children list treated by doctor
         case 'get_children_list':
             validateDoctorId($doctor_id);
+            
+            error_log("Getting children list for doctor ID: " . $doctor_id); // Debug log
             
             // Get pagination parameters
             $page = isset($_REQUEST['page']) ? max(1, intval($_REQUEST['page'])) : 1;
@@ -139,7 +176,7 @@ try {
                 $children[] = [
                     'id' => intval($row['id']),
                     'name' => $row['name'],
-                    'age' => intval($row['age']),
+                    'age' => $row['age'] ? intval($row['age']) : 0, // Handle null age
                     'gender' => $row['gender'],
                     'fatherName' => $row['fatherName'],
                     'mobileNo' => $row['mobileNo'],
@@ -162,7 +199,104 @@ try {
                 ]
             ];
             
+            error_log("Children list response: " . json_encode($response_data)); // Debug log
+            
             sendResponse(true, $response_data, 'Children list fetched successfully');
+            break;
+            
+        // Get teacher and employee combined list
+        case 'get_teacher_employee_list':
+            validateDoctorId($doctor_id);
+            
+            error_log("Getting teacher/employee list for doctor ID: " . $doctor_id); // Debug log
+            
+            // Get pagination parameters
+            $page = isset($_REQUEST['page']) ? max(1, intval($_REQUEST['page'])) : 1;
+            $limit = isset($_REQUEST['limit']) ? min(100, max(1, intval($_REQUEST['limit']))) : 50;
+            $offset = ($page - 1) * $limit;
+            
+            // Get total count for pagination (teachers + employees)
+            $stmt = $conn->prepare("
+                SELECT 
+                    (SELECT COUNT(*) FROM teacher WHERE t_dr_id = ?) + 
+                    (SELECT COUNT(*) FROM employee WHERE e_dr_id = ?) as total
+            ");
+            $stmt->bind_param("ii", $doctor_id, $doctor_id);
+            $stmt->execute();
+            $count_result = $stmt->get_result();
+            $total_records = $count_result->fetch_assoc()['total'];
+            
+            // Get combined teacher and employee list with UNION
+            $stmt = $conn->prepare("
+                (SELECT 
+                    t_id as id, 
+                    t_name as name, 
+                    t_age as age, 
+                    t_gender as gender, 
+                    t_mobileNo as mobileNo, 
+                    t_schoolName as schoolName,
+                    t_haveAadhar as haveAadhar, 
+                    t_haveShramik as haveShramik, 
+                    t_heartStatus as heartStatus, 
+                    t_notes as notes, 
+                    t_createdat as createdat,
+                    'शिक्षक' as category
+                FROM teacher 
+                WHERE t_dr_id = ?)
+                UNION ALL
+                (SELECT 
+                    e_id as id, 
+                    e_name as name, 
+                    e_age as age, 
+                    e_gender as gender, 
+                    e_mobileNo as mobileNo, 
+                    e_schoolName as schoolName,
+                    e_haveAadhar as haveAadhar, 
+                    e_haveShramik as haveShramik, 
+                    e_heartStatus as heartStatus, 
+                    e_notes as notes, 
+                    e_createdat as createdat,
+                    'कर्मचारी' as category
+                FROM employee 
+                WHERE e_dr_id = ?)
+                ORDER BY createdat DESC 
+                LIMIT ? OFFSET ?
+            ");
+            $stmt->bind_param("iiii", $doctor_id, $doctor_id, $limit, $offset);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $staff = [];
+            while ($row = $result->fetch_assoc()) {
+                $staff[] = [
+                    'id' => intval($row['id']),
+                    'name' => $row['name'],
+                    'age' => $row['age'] ? intval($row['age']) : 0,
+                    'gender' => $row['gender'],
+                    'mobileNo' => $row['mobileNo'],
+                    'schoolName' => $row['schoolName'],
+                    'haveAadhar' => $row['haveAadhar'],
+                    'haveShramik' => $row['haveShramik'],
+                    'heartStatus' => $row['heartStatus'],
+                    'notes' => $row['notes'],
+                    'createdat' => $row['createdat'],
+                    'category' => $row['category']
+                ];
+            }
+            
+            $response_data = [
+                'staff' => $staff,
+                'pagination' => [
+                    'current_page' => $page,
+                    'total_records' => intval($total_records),
+                    'total_pages' => ceil($total_records / $limit),
+                    'limit' => $limit
+                ]
+            ];
+            
+            error_log("Staff list response: " . json_encode($response_data)); // Debug log
+            
+            sendResponse(true, $response_data, 'Teacher and employee list fetched successfully');
             break;
             
         // Add new child report

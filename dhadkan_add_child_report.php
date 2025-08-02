@@ -20,12 +20,12 @@ header('Content-Type: application/json');
 error_reporting(E_ALL);
 
 // Include database connection
-if (!file_exists('db.php')) {
-    error_log("db.php file not found");
+if (!file_exists('dhadkan_db.php')) {
+    error_log("dhadkan_db.php file not found");
     sendResponse(false, null, 'Database configuration file not found', 500);
 }
 
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 // Log raw input for debugging
 $json = file_get_contents('php://input');
 file_put_contents('form_debug.log', "Raw JSON:\n" . $json . "\n\n", FILE_APPEND);

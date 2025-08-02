@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Include database connection
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 // Check if database connection exists
 if (!isset($conn)) {
     http_response_code(500);

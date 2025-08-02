@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Get request method and action
 $method = $_SERVER['REQUEST_METHOD'];

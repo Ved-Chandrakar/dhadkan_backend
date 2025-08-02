@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Include database connection
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Function to validate email format
 function validateEmail($email) {
@@ -208,7 +208,7 @@ try {
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
     
     // Log the database error
-    error_log("Database error in add_doctor.php: " . $e->getMessage());
+    error_log("Database error in dhadkan_add_doctor.php: " . $e->getMessage());
 
 } finally {
     // Close database connection

@@ -19,12 +19,12 @@ ini_set('log_errors', 1);
 
 
 // Include database connection
-if (!file_exists('db.php')) {
-    error_log("db.php file not found");
+if (!file_exists('dhadkan_db.php')) {
+    error_log("dhadkan_db.php file not found");
     sendResponse(false, null, 'Database configuration file not found', 500);
 }
 
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Response function
 function sendResponse($success, $data = null, $message = '', $code = 200) {

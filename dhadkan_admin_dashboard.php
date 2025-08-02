@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Include database connection
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Function to send JSON response
 function sendResponse($success, $data = null, $message = '', $httpCode = 200) {

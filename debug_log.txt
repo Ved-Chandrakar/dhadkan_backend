@@ -1,1 +1,0 @@
-{"name":"abcd","age":"40","gender":"महिला","mobileNo":"742698130","schoolName":"avbc","haveAadhar":"yes","haveShramik":"yes","heartStatus":"संदिग्ध","notes":"ffgfvfv","dr_id":2,"aadharPhoto":null,"shramikPhoto":null}

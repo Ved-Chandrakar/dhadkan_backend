@@ -18,7 +18,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 // Include database connection
-require_once 'db.php';
+require_once 'dhadkan_db.php';
 
 // Log the request
 error_log("Login request received: " . $_SERVER['REQUEST_METHOD']);
