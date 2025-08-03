@@ -1,0 +1,69 @@
+Raw JSON:
+{"name":"nilesh","age":"12","gender":"पुरुष","fatherName":"hiresh","mobileNo":"1594872630","schoolName":"avbc","haveAadhar":"yes","haveShramik":"no","heartStatus":"संदेह नहीं","notes":"normal","dr_id":1,"category":"teacher","aadharPhoto":null,"shramikPhoto":null}
+
+Parsed Data:
+Array
+(
+    [name] => nilesh
+    [age] => 12
+    [gender] => पुरुष
+    [fatherName] => hiresh
+    [mobileNo] => 1594872630
+    [schoolName] => avbc
+    [haveAadhar] => yes
+    [haveShramik] => no
+    [heartStatus] => संदेह नहीं
+    [notes] => normal
+    [dr_id] => 1
+    [category] => teacher
+    [aadharPhoto] => 
+    [shramikPhoto] => 
+)
+
+
+Raw JSON:
+{"name":"test1","age":"15","gender":"महिला","fatherName":"f1","mobileNo":"4598762310","schoolName":"avbc","haveAadhar":"yes","haveShramik":"no","heartStatus":"संदिग्ध","notes":"need attention","dr_id":1,"category":"teacher","aadharPhoto":null,"shramikPhoto":null}
+
+Parsed Data:
+Array
+(
+    [name] => test1
+    [age] => 15
+    [gender] => महिला
+    [fatherName] => f1
+    [mobileNo] => 4598762310
+    [schoolName] => avbc
+    [haveAadhar] => yes
+    [haveShramik] => no
+    [heartStatus] => संदिग्ध
+    [notes] => need attention
+    [dr_id] => 1
+    [category] => teacher
+    [aadharPhoto] => 
+    [shramikPhoto] => 
+)
+
+
+Raw JSON:
+{"name":"test4","age":"5","gender":"पुरुष","fatherName":"tf4","mobileNo":"9587462130","schoolName":"avbc","haveAadhar":"yes","haveShramik":"no","heartStatus":"संदेह नहीं","notes":"normal","dr_id":1,"category":"teacher","aadharPhoto":null,"shramikPhoto":null}
+
+Parsed Data:
+Array
+(
+    [name] => test4
+    [age] => 5
+    [gender] => पुरुष
+    [fatherName] => tf4
+    [mobileNo] => 9587462130
+    [schoolName] => avbc
+    [haveAadhar] => yes
+    [haveShramik] => no
+    [heartStatus] => संदेह नहीं
+    [notes] => normal
+    [dr_id] => 1
+    [category] => teacher
+    [aadharPhoto] => 
+    [shramikPhoto] => 
+)
+
+
