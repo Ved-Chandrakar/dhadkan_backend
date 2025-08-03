@@ -86,7 +86,7 @@ if ($shramikPhoto) {
 
 // DB insert
 try {
-    $pdo = new PDO("mysql:host=localhost;dbname=dhadkan;charset=utf8mb4", "root", "");
+    $pdo = new PDO("mysql:host=localhost;dbname=dhadkan;charset=utf8mb4", "root", "Ssipmt@2025DODB");
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     $stmt = $pdo->prepare("INSERT INTO children 
